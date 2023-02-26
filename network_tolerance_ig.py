@@ -2,7 +2,22 @@ import random
 import pandas as pd
 import igraph as ig
 import numpy as np
+""" Tutorial:
+1. Import necessary packages above
+2. Place this script in the same folder as your workspace
+3. Import this script:
 
+from network_tolerance_ig import *
+
+4. After import, instantiate needed class with the required parameters:
+
+tolerance = GraphTolerance(graph)
+
+5. Using a GraphTolerance function:
+measures = ['maxdegree', 'diameter', 'average_path_length']
+results_df = tolerance.target_attackf=0.20, steps= 20, 
+                         graph_measures=measures)
+"""
 class CreateGraph:
     def __init__(self, df):
         self.df = df
@@ -70,11 +85,11 @@ class GraphTolerance:
     def random_fail(self, f, steps, graph_measures):
         """Error Tolerance Method
 
-        Function: Randomly removes 0-f percentage of nodes in a graph 
-        and monitors graph level measures per step
+        Function: Randomly removes f percentage of nodes in a graph
+        and ouputs a dataframe on graph-level measures after removal
 
         Parameters:
-        f = max percentage of nodes in graph to be removed
+        f = percentage of nodes in graph to be removed
         steps = minimum number of datapoints generated from 0 to f
         graph_measures = MUST be a list or tuple of graph level methods
 
@@ -102,10 +117,7 @@ class GraphTolerance:
                 self.G.delete_vertices(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                for measure in graph_measures:
-                    method = getattr(ig.Graph, measure)
-                    result = method(self.G)
-                    results.append(result) 
+                results.extend(self.measure_calc(graph_measures))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -121,10 +133,7 @@ class GraphTolerance:
                     self.G.delete_vertices(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    for measure in graph_measures:
-                        method = getattr(ig.Graph, measure)
-                        result = method(self.G)
-                        results.append(result) 
+                    results.extend(self.measure_calc(graph_measures))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
@@ -141,8 +150,8 @@ class GraphTolerance:
     def target_attack(self, f, steps, graph_measures):
         """Targeted Attack Method
 
-        Function: Randomly removes 0-f percentage of nodes in a graph 
-        and monitors graph level measures per step
+        Function: Removes top-f percent of nodes with highest degree
+        and ouputs a dataframe on graph-level measures after removal
 
         Parameters:
         f = max percentage of nodes in graph to be removed
