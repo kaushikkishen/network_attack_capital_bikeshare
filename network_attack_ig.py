@@ -34,19 +34,21 @@ class CreateGraph:
                             directed=True, edge_attrs=['weight', 'names'])
         return g
 
-class NetworkAttack:
+class GraphTolerance:
+    """Includes functions for error and attack tolerance"""
     def __init__(self, graph):
         self.G = graph
 
     def random_fail(self, f, steps, graph_measures):
-        """
+        """Error Tolerance Method
+
         Function: Randomly removes 0-f percentage of nodes in a graph 
-        and monitors graph level measures per specified step
+        and monitors graph level measures per step
 
         Parameters:
-        f = percentage of nodes in graph to be removed
-        steps = number of datapoints generated from 0>f
-        graph_measures = MUST be a list of iGraph measure names
+        f = max percentage of nodes in graph to be removed
+        steps = minimum number of datapoints generated from 0 to f
+        graph_measures = MUST be a list or tuple of graph level methods
 
         Returns: dataframe
         """
@@ -58,10 +60,16 @@ class NetworkAttack:
         node_delete = random.sample(self.G.vs['name'],f_nodecount)
         sample = int(f_nodecount/steps)
         
-        while sample_count/node_count <= f:                            
+        if sample <1:
+            raise ValueError("Steps greater than nodes to be removed")
+        
+        if type(graph_measures) != list and type(graph_measures) != tuple:
+            raise ValueError("Measures must be a string list or tuple")
+        
+        while sample_count != f_nodecount:                            
             if sample < len(node_delete):
                 results = []
-                to_delete = random.sample(node_delete, sample)
+                to_delete = node_delete[:sample]
                 self.G.delete_vertices(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
@@ -70,26 +78,35 @@ class NetworkAttack:
                     result = method(self.G)
                     results.append(result) 
                 array.append(results)
-                for node in to_delete:
-                    node_delete.remove(node)
+                if len(node_delete) == 0:
+                    break
+                else:
+                    for node in to_delete:
+                        node_delete.remove(node)
             else:
-                results = []
-                to_delete = node_delete
-                self.G.delete_vertices(to_delete)
-                sample_count += len(to_delete)
-                results.extend([sample_count/node_count, sample_count])
-                for measure in graph_measures:
-                    method = getattr(ig.Graph, measure)
-                    result = method(self.G)
-                    results.append(result) 
-                array.append(results)
-                for node in to_delete:
-                    node_delete.remove(node)
+                if len(node_delete) == 0:
+                    break
+                else:
+                    results = []
+                    to_delete = node_delete
+                    self.G.delete_vertices(to_delete)
+                    sample_count += len(to_delete)
+                    results.extend([sample_count/node_count, sample_count])
+                    for measure in graph_measures:
+                        method = getattr(ig.Graph, measure)
+                        result = method(self.G)
+                        results.append(result) 
+                    array.append(results)
+                    if len(node_delete) == 0:
+                        break
+                    else:
+                        for node in to_delete:
+                            node_delete.remove(node)
         
         column_names = ['f','f_count']
-        measure_count = len(array[1])-2
-        measure_names = [f"Measure {i}" for i in range(1, measure_count+1)]
-        column_names.extend(measure_names)
-        results_df = pd.DataFrame(array, columns =column_names)
+        column_names.extend(graph_measures)
+        results_df = pd.DataFrame(array, columns = column_names)
 
         return results_df
+
+    #def target_attack(self, f, steps, graph_measures):
