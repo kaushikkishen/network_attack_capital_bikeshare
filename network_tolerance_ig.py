@@ -21,7 +21,7 @@ class CreateGraph:
                     measures.append(result)
         return measures
     
-    def create_network(self, directed, loops):
+    def create_network(self, directed=False):
         edge = self.df[['start_station_id', 'end_station_id']].copy()
 
         edge.dropna(inplace=True)
@@ -45,13 +45,27 @@ class CreateGraph:
         edge_grouped = edge_grouped[['start_station_id', 'end_station_id', 'weight', 'name']]
         #Create tuplelist from edge_grouped df, read tuplelist in igraph
         g = ig.Graph.DataFrame(edge_grouped, \
-                    directed=True, use_vids=False)
+                    directed=directed, use_vids=False)
         return g
 
 class GraphTolerance:
     """Includes functions for error and attack tolerance"""
     def __init__(self, graph):
         self.G = graph
+    
+    def measure_calc(self, graph_measures):
+        loop_calc = ['maxdegree', 'density']
+        measures = []
+        for measure in graph_measures:
+                        if measure not in loop_calc:
+                            method = getattr(ig.Graph, measure)
+                            result = method(self.G)
+                            measures.append(result)
+                        else:
+                            method = getattr(ig.Graph, measure)
+                            result = method(self.G, loops=True)
+                            measures.append(result)
+        return measures
 
     def random_fail(self, f, steps, graph_measures):
         """Error Tolerance Method
@@ -144,16 +158,16 @@ class GraphTolerance:
         f_nodecount = round((f*node_count))
         degrees = np.array(self.G.degree())
         sorted_indices = np.argsort(-degrees)
-        node_delete = self.G.vs[sorted_indices[:f_nodecount]]
-        node_delete['name']
+        top_vertices = self.G.vs[sorted_indices[:f_nodecount]]
+        node_delete = top_vertices['name']
         sample = int(f_nodecount/steps)
         
         if sample <1:
             raise ValueError("Steps greater than nodes to be removed")
-        
+
         if type(graph_measures) != list and type(graph_measures) != tuple:
             raise ValueError("Measures must be a string list or tuple")
-        
+
         while sample_count != f_nodecount:                            
             if sample < len(node_delete):
                 results = []
@@ -161,10 +175,7 @@ class GraphTolerance:
                 self.G.delete_vertices(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                for measure in graph_measures:
-                    method = getattr(ig.Graph, measure)
-                    result = method(self.G)
-                    results.append(result) 
+                results.extend(self.measure_calc(graph_measures))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -180,17 +191,14 @@ class GraphTolerance:
                     self.G.delete_vertices(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    for measure in graph_measures:
-                        method = getattr(ig.Graph, measure)
-                        result = method(self.G)
-                        results.append(result) 
+                    results.extend(self.measure_calc(graph_measures))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
                     else:
                         for node in to_delete:
                             node_delete.remove(node)
-        
+
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
         results_df = pd.DataFrame(array, columns = column_names)
