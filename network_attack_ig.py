@@ -1,6 +1,7 @@
-import numpy as np
+import random
 import pandas as pd
 import igraph as ig
+
 
 class CreateGraph:
     def __init__(self, df):
@@ -30,39 +31,65 @@ class CreateGraph:
 
         #Create tuplelist from edge_grouped df, read tuplelist in igraph
         g = ig.Graph.TupleList(edge_grouped.itertuples(index=False), \
-                            directed=True, edge_attrs=['weight', 'name'])
+                            directed=True, edge_attrs=['weight', 'names'])
         return g
-"""
+
 class NetworkAttack:
-    def __init__(self, graph, f):
+    def __init__(self, graph):
         self.G = graph
-        self.f = f
-        self.node_list = list(self.G.nodes)
-        self.f_nodecount = round(self.G.number_of_nodes()*f)
 
+    def random_fail(self, f, steps, graph_measures):
+        """
+        Function: Randomly removes 0-f percentage of nodes in a graph 
+        and monitors graph level measures per specified step
 
-    def random_fail(self,step, graph_measures):
-        #f is the max percentage of nodes to be deleted
-        #create list of numbers from 0 to f
-        #steps is the number of interval until f
-        f_list = np.linspace(0, self.f, steps).to_list()
-        node_delete = np.random.choice(self.node_list,\
-                                        size=self.f_nodecount, replace=False)
+        Parameters:
+        f = percentage of nodes in graph to be removed
+        steps = number of datapoints generated from 0>f
+        graph_measures = MUST be a list of iGraph measure names
+
+        Returns: dataframe
+        """
+
+        array = []
+        sample_count = 0
+        node_count = self.G.vcount()
+        f_nodecount = round((f*node_count))
+        node_delete = random.sample(self.G.vs['name'],f_nodecount)
+        sample = int(f_nodecount/steps)
         
-        results = pd.DataFrame(columns=['f','measure'])
-        
-
-        if self.f_nodecount%steps==0:
-            sample = self.f_nodecount/steps
-            for i in f_list:
-                to_delete = np.random.choice(node_delete,\
-                                             size=sample, replace=False)
-                for j in to_delete:
-                    self.G.remove_nodes(j)
-                    node_delete.remove(j)
+        while sample_count/node_count <= f:                            
+            if sample < len(node_delete):
+                results = []
+                to_delete = random.sample(node_delete, sample)
+                self.G.delete_vertices(to_delete)
+                sample_count += sample
+                results.extend([sample_count/node_count, sample_count])
                 for measure in graph_measures:
-                    self.G.measure       
-                
-        else:
+                    method = getattr(ig.Graph, measure)
+                    result = method(self.G)
+                    results.append(result) 
+                array.append(results)
+                for node in to_delete:
+                    node_delete.remove(node)
+            else:
+                results = []
+                to_delete = node_delete
+                self.G.delete_vertices(to_delete)
+                sample_count += len(to_delete)
+                results.extend([sample_count/node_count, sample_count])
+                for measure in graph_measures:
+                    method = getattr(ig.Graph, measure)
+                    result = method(self.G)
+                    results.append(result) 
+                array.append(results)
+                for node in to_delete:
+                    node_delete.remove(node)
+        
+        column_names = ['f','f_count']
+        measure_count = len(array[1])-2
+        measure_names = [f"Measure {i}" for i in range(1, measure_count+1)]
+        column_names.extend(measure_names)
+        results_df = pd.DataFrame(array, columns =column_names)
 
-"""
+        return results_df
