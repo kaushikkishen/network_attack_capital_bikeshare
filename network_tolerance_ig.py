@@ -22,20 +22,6 @@ class CreateGraph:
     def __init__(self, df):
         self.df = df
     
-    def measure_calc(graph_measures):
-        loop_calc = ['maxdegree', 'density']
-        measures = []
-        for measure in graph_measures:
-                if measure not in loop_calc:
-                    method = getattr(ig.Graph, measure)
-                    result = method(G)
-                    measures.append(result)
-                else:
-                    method = getattr(ig.Graph, measure)
-                    result = method(G, loops=True)
-                    measures.append(result)
-        return measures
-    
     def create_network(self, directed=False):
         edge = self.df[['start_station_id', 'end_station_id']].copy()
 
@@ -68,21 +54,15 @@ class GraphTolerance:
     def __init__(self, graph):
         self.G = graph
     
-    def measure_calc(self, graph_measures):
-        loop_calc = ['maxdegree', 'density']
+    def measure_calc(self, graph_measures, kwargs):
         measures = []
-        for measure in graph_measures:
-                        if measure not in loop_calc:
-                            method = getattr(ig.Graph, measure)
-                            result = method(self.G)
-                            measures.append(result)
-                        else:
-                            method = getattr(ig.Graph, measure)
-                            result = method(self.G, loops=True)
-                            measures.append(result)
+        for measure, kwarg in zip(graph_measures, kwargs):
+                method = getattr(ig.Graph, measure)
+                result = method(self.G, **kwarg)
+                measures.append(result)
         return measures
 
-    def random_fail(self, f, steps, graph_measures):
+    def random_fail(self, f, steps, graph_measures, measure_params):
         """Error Tolerance Method
 
         Function: Randomly removes f percentage of nodes in a graph
@@ -117,7 +97,7 @@ class GraphTolerance:
                 self.G.delete_vertices(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures))
+                results.extend(self.measure_calc(graph_measures, measure_params))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -133,7 +113,7 @@ class GraphTolerance:
                     self.G.delete_vertices(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures))
+                    results.extend(self.measure_calc(graph_measures, measure_params))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
@@ -147,7 +127,7 @@ class GraphTolerance:
 
         return results_df
 
-    def target_attack(self, f, steps, graph_measures):
+    def target_attack(self, f, steps, graph_measures, measure_params):
         """Targeted Attack Method
 
         Function: Removes top-f percent of nodes with highest degree
@@ -184,7 +164,7 @@ class GraphTolerance:
                 self.G.delete_vertices(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures))
+                results.extend(self.measure_calc(graph_measures, measure_params))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -200,7 +180,7 @@ class GraphTolerance:
                     self.G.delete_vertices(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures))
+                    results.extend(self.measure_calc(graph_measures, measure_params))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
