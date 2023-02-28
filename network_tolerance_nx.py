@@ -2,6 +2,23 @@ import numpy as np
 import random
 import pandas as pd
 import networkx as nx
+from itertools import zip_longest
+""" Tutorial:
+1. Import necessary packages above
+2. Place this script in the same folder as your workspace
+3. Import this script:
+
+from network_tolerance_nx import *
+
+4. After import, instantiate needed class with the required parameters:
+
+tolerance = GraphTolerance(graph)
+
+5. Using a GraphTolerance function:
+measures = ['maxdegree', 'diameter', 'average_path_length']
+results_df = tolerance.target_attackf=0.20, steps= 20, 
+                         graph_measures=measures)
+"""
 
 class CreateGraph:
     def __init__(self):
@@ -78,11 +95,11 @@ class GraphTolerance:
     def __init__(self, graph):
         self.G = graph
     
-    def measure_calc(self, graph_measures, custom_measures=None):
+    def measure_calc(self, graph_measures, kwargs={}, custom_measures=None):
         measures = []
-        for measure in graph_measures:
+        for measure, kwarg in zip_longest(graph_measures, kwargs, fillvalue={}):
                 method = getattr(nx, measure)
-                result = method(self.G)
+                result = method(self.G, **kwarg)
                 measures.append(result)
         
         if custom_measures:
@@ -93,7 +110,8 @@ class GraphTolerance:
                     
         return measures
 
-    def random_fail(self, f, steps, graph_measures, custom_measures):
+    def random_fail(self, f=0.05, steps=5, graph_measures=['diameter'],\
+                     measure_params={}, custom_measures=None):
         """Error Tolerance Method
 
         Function: Randomly removes f percentage of nodes in a graph
@@ -133,7 +151,8 @@ class GraphTolerance:
                 self.G.remove_nodes_from(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures, custom_measures))
+                results.extend(self.measure_calc(graph_measures, \
+                        measure_params, custom_measures))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -149,7 +168,8 @@ class GraphTolerance:
                     self.G.remove_nodes_from(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures, custom_measures))
+                    results.extend(self.measure_calc(graph_measures, \
+                        measure_params, custom_measures))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
@@ -159,12 +179,17 @@ class GraphTolerance:
 
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
-        column_names.extend(list(custom_measures.keys()))
+        if custom_measures:
+            column_names.extend(list(custom_measures.keys()))
+        else:
+            pass
         results_df = pd.DataFrame(array, columns = column_names)
 
         return results_df
 
-    def target_attack(self, f, steps, graph_measures, custom_measures):
+    def target_attack(self, f=0.05, centrality='degree', centrality_params={},\
+                      steps=5, graph_measures=['diameter'], measure_params={},\
+                        custom_measures=None):
         """Targeted Attack Method
 
         Function: Removes top-f percent of nodes with highest degree
@@ -188,9 +213,12 @@ class GraphTolerance:
         sample_count = 0
         node_count = self.G.number_of_nodes()
         f_nodecount = round((f*node_count))
-        degrees = np.array([(n, d) for n, d in self.G.degree()])
-        sorted_indices = np.argsort(-degrees[:, 1])
-        top_vertices = degrees[sorted_indices[:f_nodecount], 0]
+
+        bench = getattr(nx, centrality)
+        bench_compute = bench(self.G, **centrality_params)
+        bench_np = np.array([(n, d) for n, d in bench_compute])
+        sorted_indices = np.argsort(-bench_np[:, 1])
+        top_vertices = bench_np[sorted_indices[:f_nodecount], 0]
         node_delete = list(top_vertices)
         sample = int(f_nodecount/steps)
         
@@ -207,7 +235,8 @@ class GraphTolerance:
                 self.G.remove_nodes_from(to_delete)
                 sample_count += sample
                 results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures, custom_measures))
+                results.extend(self.measure_calc(graph_measures, \
+                    measure_params, custom_measures))
                 array.append(results)
                 if len(node_delete) == 0:
                     break
@@ -223,7 +252,8 @@ class GraphTolerance:
                     self.G.remove_nodes_from(to_delete)
                     sample_count += len(to_delete)
                     results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures, custom_measures))
+                    results.extend(self.measure_calc(graph_measures, \
+                    measure_params, custom_measures))
                     array.append(results)
                     if len(node_delete) == 0:
                         break
@@ -233,7 +263,10 @@ class GraphTolerance:
 
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
-        column_names.extend(list(custom_measures.keys()))
+        if custom_measures:
+            column_names.extend(list(custom_measures.keys()))
+        else:
+            pass
         results_df = pd.DataFrame(array, columns = column_names)
 
         return results_df
