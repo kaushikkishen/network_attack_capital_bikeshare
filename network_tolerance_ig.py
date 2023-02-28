@@ -2,6 +2,7 @@ import random
 import pandas as pd
 import igraph as ig
 import numpy as np
+from itertools import zip_longest
 """ Tutorial:
 1. Import necessary packages above
 2. Place this script in the same folder as your workspace
@@ -54,15 +55,16 @@ class GraphTolerance:
     def __init__(self, graph):
         self.G = graph
     
-    def measure_calc(self, graph_measures, kwargs):
+    def measure_calc(self, graph_measures, kwargs={}):
         measures = []
-        for measure, kwarg in zip(graph_measures, kwargs):
+        for measure, kwarg in zip_longest(graph_measures, kwargs, fillvalue={}):
                 method = getattr(ig.Graph, measure)
                 result = method(self.G, **kwarg)
                 measures.append(result)
         return measures
 
-    def random_fail(self, f, steps, graph_measures, measure_params):
+    def random_fail(self, f=0.05, steps=5, graph_measures=['diameter'],\
+                     measure_params={}):
         """Error Tolerance Method
 
         Function: Randomly removes f percentage of nodes in a graph
@@ -127,7 +129,9 @@ class GraphTolerance:
 
         return results_df
 
-    def target_attack(self, f, steps, graph_measures, measure_params):
+    def target_attack(self, f=0.05, centrality='degree', centrality_params={},\
+                      steps=5, graph_measures=['diameter'], measure_params={}):
+        
         """Targeted Attack Method
 
         Function: Removes top-f percent of nodes with highest degree
@@ -145,8 +149,11 @@ class GraphTolerance:
         sample_count = 0
         node_count = self.G.vcount()
         f_nodecount = round((f*node_count))
-        degrees = np.array(self.G.degree())
-        sorted_indices = np.argsort(-degrees)
+
+        bench = getattr(ig.Graph, centrality)
+        bench_compute = bench(self.G, **centrality_params)
+        bench_np = np.array(bench_compute)
+        sorted_indices = np.argsort(-bench_np)
         top_vertices = self.G.vs[sorted_indices[:f_nodecount]]
         node_delete = top_vertices['name']
         sample = int(f_nodecount/steps)
