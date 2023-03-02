@@ -214,7 +214,7 @@ class GraphTolerance:
         bench_compute = bench(self.G, **centrality_params)
         bench_np = np.array(bench_compute)
         sorted_indices = bench_np.argsort()[::-1][:f_nodecount]
-        top_vertices = self.G.vs[sorted_indices]
+        top_vertices = self.G.vs[list(sorted_indices)]
         node_delete = top_vertices['name']
         
         
