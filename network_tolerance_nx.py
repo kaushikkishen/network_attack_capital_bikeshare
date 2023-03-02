@@ -15,9 +15,20 @@ from network_tolerance_nx import *
 tolerance = GraphTolerance(graph)
 
 5. Using a GraphTolerance function:
-measures = ['maxdegree', 'diameter', 'average_path_length']
-results_df = tolerance.target_attackf=0.20, steps= 20, 
-                         graph_measures=measures)
+#Defining Parmaeters
+graph_measures = ['average_shortest_path_length']
+measure_params = [{'weight': None}]
+custom_funcs = {'diameter': max_diameter, 'maxdegree': max_degree}
+centrality = 'degree' #nx function
+centrality_params = {'weight':None}
+
+#Executing Node Deletion
+target_attack = tolerance.target_attack(f=0.05, centrality=centrality, 
+                                   centrality_params = centrality_params,
+                                    steps= 5, 
+                         graph_measures=graph_measures,
+                         measure_params=measure_params,
+                         custom_measures=custom_funcs)
 """
 
 class CreateGraph:
@@ -27,67 +38,81 @@ class CreateGraph:
     def preprocess_df(self, df):
         # Drop rows with null values
         df.dropna(inplace=True)
-        # Convert started_at and ended_at columns to datetime
-        df['start_time'] = pd.to_datetime(df['started_at'])
-        df['end_time'] = pd.to_datetime(df['ended_at'])
+        edge = df[['started_at', 'ended_at',
+        'start_station_id', 'start_station_name',
+       'end_station_id', 'end_station_name', 'member_casual']].copy()
+
+        edge['start_time'] = pd.to_datetime(edge['started_at'])
+        edge['end_time'] = pd.to_datetime(edge['ended_at'])
 
         # Extract month and year from start_time and end_time columns
-        df['start_month'] = df['start_time'].dt.month
-        df['start_year'] = df['start_time'].dt.year
-        df['end_month'] = df['end_time'].dt.month
-        df['end_year'] = df['end_time'].dt.year
-
-        # Extract time of day from start_time and end_time columns
-        df['start_time'] = df['start_time'].dt.time
-        df['end_time'] = df['end_time'].dt.time
+        edge['start_year'] = edge['start_time'].dt.year
+        edge['end_year'] = edge['end_time'].dt.year
 
         # Calculate travel time in seconds
-        df['travel_time_in_sec'] = (pd.to_datetime(df['ended_at'])\
-                                          - pd.to_datetime(df['started_at'])).dt.total_seconds()
-       
-        # Calculate weight column based on the number of trips between each start and end station
-        df['weight'] = df.groupby(['start_station_id', 'end_station_id'])['ride_id'].transform('count')
+        edge['travel_time_in_sec'] = (pd.to_datetime(edge['ended_at'])\
+                                          - pd.to_datetime(edge['started_at'])).dt.total_seconds()
+        
+        edge.drop(columns=['start_time', 'end_time'], inplace=True)
 
-        return df
+        #Converts station id numbers to string
+        edge['start_station_id'] = edge['start_station_id'].astype(int).astype('string')
+        edge['end_station_id'] = edge['end_station_id'].astype(int).astype('string')
+
+        #concat START and END ids to create edge pair ID column
+        edge['edge_pairs'] = edge['start_station_id'] + '-' + edge['end_station_id']
+        #clean up member_casual columns
+        edge['member_casual'] = edge['member_casual'].str.lower()
+        edge = pd.get_dummies(edge, columns =['member_casual'])
+
+
+        #Groupby edge_pairs with count as method
+        edge_grouped = edge.groupby(['edge_pairs'], as_index=False)\
+            .agg({'start_station_id':'first',
+                'end_station_id':'first',
+                'edge_pairs': 'count' ,
+                'started_at': 'first',
+                'ended_at':'first',
+                'start_station_name':'first',	
+                'end_station_name':'first',
+                'member_casual_casual': 'sum',
+                'member_casual_member': 'sum',	
+                'start_year': 'first',	
+                'end_year': 'first',
+                'travel_time_in_sec': 'sum'})
+
+
+        #Concat start and end ID column again to be used as edge name
+        #Rearrange columns for igraph ingest
+        edge_grouped['name'] = edge_grouped['start_station_id'] + '-' \
+            + edge_grouped['end_station_id']
+        edge_grouped.rename(columns={'edge_pairs':'weight',
+                                    'member_casual_casual': 'casual_count',
+                                    'member_casual_member': 'member_count'
+                                    }, inplace=True)
+
+        edge_grouped = edge_grouped[['start_station_id', 'end_station_id', 
+                                    'weight', 'name',
+                                    'started_at',
+                                    'ended_at',
+                                    'start_station_name',	
+                                    'end_station_name',
+                                    'casual_count',
+                                    'member_count',	
+                                    'start_year',
+                                    'end_year',
+                                    'travel_time_in_sec']]
+
+
+        #Create tuplelist from edge_grouped df, read tuplelist in igraph
+
+        return edge_grouped
 
     def create_network(self, df):
-        G = nx.DiGraph()
-
-        # Add nodes to graph
-        for _, row in df.iterrows():
-            # Add start station node
-            start_id = row['start_station_id']
-            start_name = row['start_station_name']
-            start_lat = row['start_lat']
-            start_lng = row['start_lng']
-            if not G.has_node(start_id):
-                G.add_node(start_id, name=start_name, lat=start_lat, lng=start_lng)
-
-            # Add end station node
-            end_id = row['end_station_id']
-            end_name = row['end_station_name']
-            end_lat = row['end_lat']
-            end_lng = row['end_lng']
-            if not G.has_node(end_id):
-                G.add_node(end_id, name=end_name, lat=end_lat, lng=end_lng)
-
-            # Add ride edge
-            ride_id = row['ride_id']
-            rideable_type = row['rideable_type']
-            member_casual = row['member_casual']
-            start_time = row['started_at']
-            end_time = row['ended_at']
-            travel_time_in_sec = row['travel_time_in_sec']
-            weight = row['weight']
-            G.add_edge(start_id, end_id, 
-                    id=ride_id, 
-                    type=rideable_type, 
-                    member_casual=member_casual, 
-                    start_time=start_time, 
-                    end_time=end_time, 
-                    travel_time_in_sec=travel_time_in_sec, 
-                    weight=weight)
-
+        G = nx.from_pandas_edgelist(df, 
+                            source=df.columns[0], target=df.columns[1], 
+                            edge_attr=True,
+                            create_using= nx.DiGraph)
         return G
 
 class GraphTolerance:
@@ -217,11 +242,12 @@ class GraphTolerance:
         bench = getattr(nx, centrality)
         bench_compute = bench(self.G, **centrality_params)
         bench_np = np.array([(n, d) for n, d in bench_compute])
-        sorted_indices = np.argsort(-bench_np[:, 1])
+        bench_int = bench_np[:, 1].astype(np.int16)
+        sorted_indices = np.argsort(-bench_int)
         top_vertices = bench_np[sorted_indices[:f_nodecount], 0]
         node_delete = list(top_vertices)
         sample = int(f_nodecount/steps)
-        
+    
         if sample <1:
             raise ValueError("Steps greater than nodes to be removed")
 
