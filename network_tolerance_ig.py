@@ -182,8 +182,7 @@ class GraphTolerance:
 
         return results_df
 
-    def target_attack(self, f=0.05, centrality='degree', centrality_params={},\
-                      steps=5, graph_measures=['diameter'], measure_params={}):
+    def target_attack(self, f=0.05, centrality='degree', centrality_params={}, graph_measures=['diameter'], measure_params={}):
         
         """Targeted Attack Method
 
