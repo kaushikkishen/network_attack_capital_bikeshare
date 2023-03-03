@@ -1,7 +1,6 @@
 import random
 import pandas as pd
 import igraph as ig
-import numpy as np
 from itertools import zip_longest
 
 """ Tutorial:
@@ -208,52 +207,20 @@ class GraphTolerance:
         sample_count = 0
         node_count = self.G.vcount()
         f_nodecount = round((f*node_count))
-        sample = int(f_nodecount/steps)
-
-        bench = getattr(ig.Graph, centrality)
-        bench_compute = bench(self.G, **centrality_params)
-        bench_np = np.array(bench_compute)
-        sorted_indices = bench_np.argsort()[::-1][:f_nodecount]
-        top_vertices = self.G.vs[list(sorted_indices)]
-        node_delete = top_vertices['name']
-        
-        
-        if sample <1:
-            raise ValueError("Steps greater than nodes to be removed")
 
         if type(graph_measures) != list and type(graph_measures) != tuple:
             raise ValueError("Measures must be a string list or tuple")
 
-        while sample_count != f_nodecount:                            
-            if sample < len(node_delete):
-                results = []
-                to_delete = node_delete[:sample]
-                self.G.delete_vertices(to_delete)
-                sample_count += sample
-                results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures, measure_params))
-                array.append(results)
-                if len(node_delete) == 0:
-                    break
-                else:
-                    for node in to_delete:
-                        node_delete.remove(node)
-            else:
-                if len(node_delete) == 0:
-                    break
-                else:
-                    results = []
-                    to_delete = node_delete
-                    self.G.delete_vertices(to_delete)
-                    sample_count += len(to_delete)
-                    results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures, measure_params))
-                    array.append(results)
-                    if len(node_delete) == 0:
-                        break
-                    else:
-                        for node in to_delete:
-                            node_delete.remove(node)
+        while sample_count != f_nodecount:                       
+            results = []
+            bench = getattr(ig.Graph, centrality)
+            bench_compute = bench(self.G, **centrality_params)
+            bench_index = bench_compute.index(max(bench_compute))
+            self.G.delete_vertices(bench_index)
+            sample_count += 1
+            results.extend([sample_count/node_count, sample_count])
+            results.extend(self.measure_calc(graph_measures, measure_params))
+            array.append(results)
 
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
