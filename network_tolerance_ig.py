@@ -103,13 +103,13 @@ class GraphTolerance:
     """Includes functions for error and attack tolerance"""
     
     def __init__(self, graph):
-        self.G = graph
+        self.G = graph.copy()
     
-    def measure_calc(self, graph_measures, kwargs={}):
+    def measure_calc(self, g, graph_measures, kwargs={}):
         measures = []
         for measure, kwarg in zip_longest(graph_measures, kwargs, fillvalue={}):
                 method = getattr(ig.Graph, measure)
-                result = method(self.G, **kwarg)
+                result = method(g, **kwarg)
                 measures.append(result)
         return measures
 
@@ -123,66 +123,40 @@ class GraphTolerance:
 
         Parameters:
         f = percentage of nodes in graph to be removed
-        steps = minimum number of datapoints generated from 0 to f
         graph_measures = MUST be a list or tuple of graph level methods
         measure_params = dictionary or list of dictionaries of graph_measures
         parameters
 
         Returns: dataframe
         """
+        g = self.G.copy()
       
-
         array = []
         sample_count = 0
-        node_count = self.G.vcount()
+        node_count = g.vcount()
         f_nodecount = round((f*node_count))
-        node_delete = random.sample(self.G.vs['name'],f_nodecount)
-        sample = int(f_nodecount/steps)
-        
-        if sample <1:
-            raise ValueError("Steps greater than nodes to be removed")
+        node_delete = random.sample(g.vs['name'],f_nodecount)
         
         if type(graph_measures) != list and type(graph_measures) != tuple:
            raise ValueError("Measures must be a string list or tuple")
         
         while sample_count != f_nodecount:                            
-            if sample < len(node_delete):
-                results = []
-                to_delete = node_delete[:sample]
-                self.G.delete_vertices(to_delete)
-                sample_count += sample
-                results.extend([sample_count/node_count, sample_count])
-                results.extend(self.measure_calc(graph_measures, measure_params))
-                array.append(results)
-                if len(node_delete) == 0:
-                    break
-                else:
-                    for node in to_delete:
-                        node_delete.remove(node)
-            else:
-                if len(node_delete) == 0:
-                    break
-                else:
-                    results = []
-                    to_delete = node_delete
-                    self.G.delete_vertices(to_delete)
-                    sample_count += len(to_delete)
-                    results.extend([sample_count/node_count, sample_count])
-                    results.extend(self.measure_calc(graph_measures, measure_params))
-                    array.append(results)
-                    if len(node_delete) == 0:
-                        break
-                    else:
-                        for node in to_delete:
-                            node_delete.remove(node)
+            results = []
+            g.delete_vertices(node_delete[0])
+            sample_count += 1
+            results.extend([sample_count/node_count, sample_count])
+            results.extend(self.measure_calc(g, graph_measures, measure_params))
+            array.append(results)
+            node_delete.remove(node_delete[0])
         
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
         results_df = pd.DataFrame(array, columns = column_names)
 
-        return results_df
+        return g, results_df
 
-    def target_attack(self, f=0.05, centrality='degree', centrality_params={}, graph_measures=['diameter'], measure_params={}):
+    def target_attack(self, f=0.05, centrality='degree', centrality_params={}, \
+                      graph_measures=['diameter'], measure_params={}):
         
         """Targeted Attack Method
 
@@ -194,17 +168,17 @@ class GraphTolerance:
         centrality = node centrality measure to do targeted attack
         centrality_params = dictionary or list of dictionaries of centrality
         parameters
-        steps = minimum number of datapoints generated from 0 to f
         graph_measures = MUST be a list or tuple of graph level methods
         measure_params = dictionary or list of dictionaries of graph_measures
         parameters
 
         Returns: modified graph, dataframe
         """
+        g = self.G.copy()
 
         array = []
         sample_count = 0
-        node_count = self.G.vcount()
+        node_count = g.vcount()
         f_nodecount = round((f*node_count))
 
         if type(graph_measures) != list and type(graph_measures) != tuple:
@@ -213,16 +187,16 @@ class GraphTolerance:
         while sample_count != f_nodecount:                       
             results = []
             bench = getattr(ig.Graph, centrality)
-            bench_compute = bench(self.G, **centrality_params)
+            bench_compute = bench(g, **centrality_params)
             bench_index = bench_compute.index(max(bench_compute))
-            self.G.delete_vertices(bench_index)
+            g.delete_vertices(bench_index)
             sample_count += 1
             results.extend([sample_count/node_count, sample_count])
-            results.extend(self.measure_calc(graph_measures, measure_params))
+            results.extend(self.measure_calc(g, graph_measures, measure_params))
             array.append(results)
 
         column_names = ['f','f_count']
         column_names.extend(graph_measures)
         results_df = pd.DataFrame(array, columns = column_names)
 
-        return results_df
+        return g, results_df
