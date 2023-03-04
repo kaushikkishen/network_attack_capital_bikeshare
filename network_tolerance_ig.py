@@ -4,20 +4,23 @@ import igraph as ig
 from itertools import zip_longest
 
 """ Tutorial:
-1. Import necessary packages above
-2. Place this script in the same folder as your workspace
-3. Import this script:
+
+1. Place this script in the same folder as your workspace
+2. Import this script:
 
 from network_tolerance_ig import *
 
-4. After import, instantiate needed class with the required parameters:
+3. After import, instantiate needed class with the required parameters:
 
 tolerance = GraphTolerance(graph)
 
-5. Using a GraphTolerance function:
+4. Using a GraphTolerance function:
 measures = ['maxdegree', 'diameter', 'average_path_length']
-results_df = tolerance.target_attackf=0.20, steps= 20, 
-                         graph_measures=measures)
+measure_params = [{'loops': True , 'mode':'all'},
+          {'directed':True}]
+g1, rf_df_1 = tolerance.random_fail(f=0.05, 
+                         graph_measures=measures,
+                         measure_params=measure_params)
 """
 class CreateGraph:
     def __init__(self):
@@ -113,7 +116,7 @@ class GraphTolerance:
                 measures.append(result)
         return measures
 
-    def random_fail(self, f=0.05, steps=5, graph_measures=['diameter'],\
+    def random_fail(self, f=0.05, graph_measures=['diameter'],\
                      measure_params={}):
         
         """Error Tolerance Method
@@ -127,7 +130,7 @@ class GraphTolerance:
         measure_params = dictionary or list of dictionaries of graph_measures
         parameters
 
-        Returns: dataframe
+        Returns: graph, dataframe
         """
         g = self.G.copy()
       
@@ -172,7 +175,7 @@ class GraphTolerance:
         measure_params = dictionary or list of dictionaries of graph_measures
         parameters
 
-        Returns: modified graph, dataframe
+        Returns: graph, dataframe
         """
         g = self.G.copy()
 
